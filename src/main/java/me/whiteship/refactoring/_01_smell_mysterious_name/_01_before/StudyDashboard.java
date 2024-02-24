@@ -25,18 +25,13 @@ public class StudyDashboard {
         }
     }
 
-    public Set<String> getReviewers() {
-        return reviewers;
-    }
-
-    public Set<String> getReviews() {
-        return reviews;
+    public Set<StudyReview> getStudyReviews() {
+        return studyReviews;
     }
 
     public static void main(String[] args) throws IOException {
         StudyDashboard studyDashboard = new StudyDashboard();
         studyDashboard.loadReviews();
-        studyDashboard.getReviewers().forEach(System.out::println);
-        studyDashboard.getReviews().forEach(System.out::println);
+        studyDashboard.getStudyReviews().forEach(System.out::println);
     }
 }
