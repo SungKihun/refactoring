@@ -64,6 +64,7 @@ public class StudyDashboard {
 
         latch.await();
         service.shutdown();
+//        ㅗㅗ
 
         try (FileWriter fileWriter = new FileWriter("participants.md");
              PrintWriter writer = new PrintWriter(fileWriter)) {
