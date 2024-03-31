@@ -32,8 +32,18 @@ public class StudyDashboard {
     }
 
     private void print() throws IOException, InterruptedException {
-        GHRepository ghRepository = getGhRepository();
+        checkGithubIssues(getGhRepository());
+        new StudyPrinter(this.totalNumberOfEvents, this.participants).execute();
+        printFirstParticipants();
+    }
 
+    private GHRepository getGhRepository() throws IOException {
+        GitHub gitHub = GitHub.connect();
+        GHRepository repository = gitHub.getRepository("whiteship/live-study");
+        return repository;
+    }
+
+    private void checkGithubIssues(GHRepository ghRepository) throws InterruptedException {
         ExecutorService service = Executors.newFixedThreadPool(8);
         CountDownLatch latch = new CountDownLatch(totalNumberOfEvents);
 
@@ -44,44 +54,41 @@ public class StudyDashboard {
                 public void run() {
                     try {
                         GHIssue issue = ghRepository.getIssue(eventId);
-                        List<GHIssueComment> comments = issue.getComments();
-                        Date firstCreatedAt = null;
-                        Participant first = null;
 
-                        for (GHIssueComment comment : comments) {
-                            Participant participant = findParticipant(comment.getUserName(), participants);
-                            participant.setHomeworkDone(eventId);
+                        checkHomework(issue.getComments());
 
-                            if (firstCreatedAt == null || comment.getCreatedAt().before(firstCreatedAt)) {
-                                firstCreatedAt = comment.getCreatedAt();
-                                first = participant;
-                            }
-                        }
-
-                        firstParticipantsForEachEvent[eventId - 1] = first;
+                        firstParticipantsForEachEvent[eventId - 1] = findFirst(issue.getComments());
                         latch.countDown();
                     } catch (IOException e) {
                         throw new IllegalArgumentException(e);
                     }
+                }
+
+                private void checkHomework(List<GHIssueComment> comments) {
+                    for (GHIssueComment comment : comments) {
+                        Participant participant = findParticipant(comment.getUserName(), participants);
+                        participant.setHomeworkDone(eventId);
+                    }
+                }
+
+                private Participant findFirst(List<GHIssueComment> comments) throws IOException {
+                    Date firstCreatedAt = null;
+                    Participant first = null;
+                    for (GHIssueComment comment : comments) {
+                        Participant participant = findParticipant(comment.getUserName(), participants);
+
+                        if (firstCreatedAt == null || comment.getCreatedAt().before(firstCreatedAt)) {
+                            firstCreatedAt = comment.getCreatedAt();
+                            first = participant;
+                        }
+                    }
+                    return first;
                 }
             });
         }
 
         latch.await();
         service.shutdown();
-
-        new StudyPrinter(this.totalNumberOfEvents, this.participants).execute();
-        printFirstParticipants();
-    }
-
-    private void printFirstParticipants() {
-        Arrays.stream(this.firstParticipantsForEachEvent).forEach(p -> System.out.println(p.username()));
-    }
-
-    private GHRepository getGhRepository() throws IOException {
-        GitHub gitHub = GitHub.connect();
-        GHRepository repository = gitHub.getRepository("whiteship/live-study");
-        return repository;
     }
 
     private Participant findParticipant(String username, List<Participant> participants) {
@@ -90,10 +97,8 @@ public class StudyDashboard {
                 findExistingParticipant(username, participants);
     }
 
-    private Participant findExistingParticipant(String username, List<Participant> participants) {
-        Participant participant;
-        participant = participants.stream().filter(p -> p.username().equals(username)).findFirst().orElseThrow();
-        return participant;
+    private boolean isNewParticipant(String username, List<Participant> participants) {
+        return participants.stream().noneMatch(p -> p.username().equals(username));
     }
 
     private Participant createNewParticipant(String username, List<Participant> participants) {
@@ -103,8 +108,14 @@ public class StudyDashboard {
         return participant;
     }
 
-    private boolean isNewParticipant(String username, List<Participant> participants) {
-        return participants.stream().noneMatch(p -> p.username().equals(username));
+    private Participant findExistingParticipant(String username, List<Participant> participants) {
+        Participant participant;
+        participant = participants.stream().filter(p -> p.username().equals(username)).findFirst().orElseThrow();
+        return participant;
+    }
+
+    private void printFirstParticipants() {
+        Arrays.stream(this.firstParticipantsForEachEvent).forEach(p -> System.out.println(p.username()));
     }
 
 }
